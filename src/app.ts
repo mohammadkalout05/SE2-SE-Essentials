@@ -1,5 +1,7 @@
 //SOLID Principles
 
+import logger from "./util/logger";
+
 //Single Responsibility Principle (SRP)
 //Open closed Principle (OCP)
 //Liskov Substitution Principle (LSP)
@@ -14,18 +16,27 @@ export interface Order {
 export class OrderManagement {
     private orders: Order[] = [];
     constructor(private validator: IValidator, private calculator: ICalculator) {
-
+        logger.debug("Order Management instance created");  
     }
     getOrders() {
         return this.orders;
     }
     addOrder(item: string, price: number) {
-        const order: Order = { id: this.orders.length + 1, item, price };
-        this.validator.validate(order);
-        this.orders.push();
+        try{
+            const order: Order = { id: this.orders.length+1, item , price};
+            this.validator.validate(order);
+            this.orders.push(order);
+        } catch(error: any) {
+            logger.error(`failed validation`)
+            throw new Error("[OrderManagement] Error adding order: " + error.message);
+        }
     }
 
     getOrder(id: number) {
+        const order = this.getOrders().find(order => order.id === id);
+        if(!order) {
+            logger.warn(`Order with ID ${id} not found`)
+        }
         return this.getOrders().find(order => order.id === id);
     }
 
@@ -50,10 +61,13 @@ interface IValidator {
 }
 
 export class Validator implements IValidator {
-    constructor(private rules: IValidator[]) {
-
-    }
-    validate(order: Order): void {
+    private rules: IValidator[] = [
+        new PriceValidator(),
+        new MaxPriceValidator(),
+        new ItemValidator(),
+    ]
+    
+    validate(order: Order) {
         this.rules.forEach(rule => rule.validate(order));
     }
 }
@@ -69,7 +83,7 @@ export class ItemValidator implements IValidator {
         "Marble",
         "Coffee",
     ];
-    validate(order: Order): void {
+    validate(order: Order) {
         if (!ItemValidator.possibleItems.includes(order.item)) {
             throw new Error(`Invalid item. Must be one of: ${ItemValidator.possibleItems.join(", ")}`);
         }
@@ -77,8 +91,9 @@ export class ItemValidator implements IValidator {
 }
 
 export class PriceValidator implements IValidator {
-    validate(order: Order): void {
+    validate(order: Order) {
         if (order.price <= 0) {
+            logger.error(`Price is negative: ${order.item}`);
             throw new Error("Price must be greater than zero");
         }
     }
